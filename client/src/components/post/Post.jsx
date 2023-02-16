@@ -1,19 +1,67 @@
-import "./post.scss"
-import MoreHorizOutlinedIcon from "@mui/icons-material/MoreHorizOutlined"
 import FavoriteBorderOutlinedIcon from "@mui/icons-material/FavoriteBorderOutlined"
 import FavoriteOutlinedIcon from "@mui/icons-material/FavoriteOutlined"
-import TextsmsOutlinedIcon from "@mui/icons-material/TextsmsOutlined"
+import MoreHorizOutlinedIcon from "@mui/icons-material/MoreHorizOutlined"
 import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined"
+import TextsmsOutlinedIcon from "@mui/icons-material/TextsmsOutlined"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import moment from "moment"
+import { useContext, useState, memo } from "react"
 import { Link } from "react-router-dom"
+import { makeRequest } from "../../axios"
+import { AuthContext } from "../../context/authContext"
 import Comments from "../comments/Comments"
-import { useState } from "react"
+import "./post.scss"
 
-const Post = ({ post }) => {
+const Post = memo(({ post }) => {
   const [isCommentsOpened, setIsCommentsOpened] = useState(false)
-  const liked = false
+  const { currentUser } = useContext(AuthContext)
+  const {
+    isLoading: isLoadingLikes,
+    error: errorLikes,
+    data: likes,
+  } = useQuery({
+    queryKey: ["likes" + post.id],
+    queryFn: () =>
+      makeRequest.get("/likes?postId=" + post.id).then((res) => {
+        return res.data
+      }),
+  })
+
+  const {
+    isLoading: isLoadingComments,
+    error: errorComments,
+    data: comments,
+  } = useQuery({
+    queryKey: ["comments" + post.id],
+    queryFn: () =>
+      makeRequest.get("/comments?postId=" + post.id).then((res) => {
+        return res.data
+      }),
+  })
+
+  const liked =
+    !isLoadingLikes && likes.some((like) => like.userId === currentUser.id)
+
+  const queryClient = useQueryClient()
+  const mutation = useMutation(
+    (action) => {
+      return makeRequest.post(`/likes/${action}?postId=` + post.id)
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(["likes" + post.id])
+      },
+    }
+  )
+
+  const date = moment(post.createdAt).fromNow()
 
   const handleCommentsClick = () => {
     setIsCommentsOpened((prevState) => !prevState)
+  }
+
+  const toggleLike = () => {
+    mutation.mutate(liked ? "unlike" : "like")
   }
 
   return (
@@ -21,7 +69,7 @@ const Post = ({ post }) => {
       <div className="container">
         <div className="user">
           <div className="userInfo">
-            <img src={post.profilePic} alt="" />
+            <img src={"/upload/" + post.profilePicture} alt="" />
             <div className="details">
               <Link
                 to={`/profile/${post.userId}`}
@@ -29,32 +77,39 @@ const Post = ({ post }) => {
               >
                 <span className="name">{post.name}</span>
               </Link>
-              <span className="date">a few seconds ago</span>
+              <span className="date">{date}</span>
             </div>
           </div>
           <MoreHorizOutlinedIcon />
         </div>
         <div className="content">
-          <p>{post.desc}</p>
-          <img src={post.img} alt="" />
+          <p>{post.description}</p>
+          <img src={`/upload/${post.image}`} alt="" />
         </div>
         <div className="actions">
           <div className="item">
-            {liked ? <FavoriteOutlinedIcon /> : <FavoriteBorderOutlinedIcon />}
-            12 Likes
+            {liked ? (
+              <FavoriteOutlinedIcon onClick={toggleLike} />
+            ) : (
+              <FavoriteBorderOutlinedIcon onClick={toggleLike} />
+            )}
+            {!isLoadingLikes ? `${likes.length} Likes` : "0 Likes"}
           </div>
           <div className="item" onClick={handleCommentsClick}>
-            <TextsmsOutlinedIcon />1 Comment
+            <TextsmsOutlinedIcon />
+            {!isLoadingComments ? `${comments.length} Comments` : "0 Comments"}
           </div>
           <div className="item">
             <ShareOutlinedIcon />
             Share
           </div>
         </div>
-        {isCommentsOpened ? <Comments /> : null}
+        {isCommentsOpened ? (
+          <Comments postId={post.id} comments={comments} />
+        ) : null}
       </div>
     </div>
   )
-}
+})
 
 export default Post

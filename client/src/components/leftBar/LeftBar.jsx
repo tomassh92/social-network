@@ -15,6 +15,7 @@ import Courses from "../../assets/12.png"
 import Fund from "../../assets/13.png"
 import { useContext } from "react"
 import { AuthContext } from "../../context/authContext"
+import { Link } from "react-router-dom"
 
 const LeftBar = () => {
   const { currentUser } = useContext(AuthContext)
@@ -22,10 +23,15 @@ const LeftBar = () => {
     <div className="leftBar">
       <div className="container">
         <div className="menu">
-          <div className="user">
-            <img src={currentUser.profilePicture} alt="" />
-            <span>{currentUser.name}</span>
-          </div>
+          <Link
+            to={`/profile/${currentUser.id}`}
+            style={{ textDecoration: "none", color: "inherit" }}
+          >
+            <div className="user">
+              <img src={"/upload/" + currentUser.profilePicture} alt="" />
+              <span>{currentUser.name}</span>
+            </div>
+          </Link>
           <div className="item">
             <img src={Friends} alt="" />
             <span>Friends</span>

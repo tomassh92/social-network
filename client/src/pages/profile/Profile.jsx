@@ -1,33 +1,158 @@
-import "./profile.scss"
-import Posts from "../../components/posts/Posts"
-import FacebookTwoToneIcon from "@mui/icons-material/FacebookTwoTone"
-import LinkedInIcon from "@mui/icons-material/LinkedIn"
-import InstagramIcon from "@mui/icons-material/Instagram"
-import PinterestIcon from "@mui/icons-material/Pinterest"
-import TwitterIcon from "@mui/icons-material/Twitter"
-import PlaceIcon from "@mui/icons-material/Place"
-import LanguageIcon from "@mui/icons-material/Language"
+import EditIcon from "@mui/icons-material/Edit"
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined"
+import FacebookTwoToneIcon from "@mui/icons-material/FacebookTwoTone"
+import InstagramIcon from "@mui/icons-material/Instagram"
+import LanguageIcon from "@mui/icons-material/Language"
+import LinkedInIcon from "@mui/icons-material/LinkedIn"
 import MoreVertIcon from "@mui/icons-material/MoreVert"
-
-const profile = {
-  id: 2,
-  name: "Jane Doe",
-  userId: 2,
-  profilePic:
-    "https://images.pexels.com/photos/1036623/pexels-photo-1036623.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  desc: "Tenetur iste voluptates dolorem rem commodi voluptate pariatur, voluptatum, laboriosam consequatur enim nostrum cumque! Maiores a nam non adipisci minima modi tempore.",
-  coverPic:
-    "https://images.pexels.com/photos/13440765/pexels-photo-13440765.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2",
-}
+import PinterestIcon from "@mui/icons-material/Pinterest"
+import PlaceIcon from "@mui/icons-material/Place"
+import TwitterIcon from "@mui/icons-material/Twitter"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useContext, useRef } from "react"
+import { useParams } from "react-router-dom"
+import { makeRequest } from "../../axios"
+import Posts from "../../components/posts/Posts"
+import Share from "../../components/share/Share"
+import { AuthContext } from "../../context/authContext"
+import "./profile.scss"
 
 const Profile = () => {
+  const { currentUser } = useContext(AuthContext)
+  const { id } = useParams()
+  const coverUploadRef = useRef(null)
+  const profileUploadRef = useRef(null)
+
+  const {
+    isLoading: isLoadingProfile,
+    error,
+    data,
+  } = useQuery({
+    queryKey: ["profile" + id],
+    queryFn: () =>
+      makeRequest.get("/users?userId=" + id).then((res) => {
+        return res.data
+      }),
+  })
+  const {
+    isLoading: isLoadingFollowers,
+    error: errorFollowers,
+    data: followers,
+  } = useQuery({
+    queryKey: ["relationship" + id],
+    queryFn: () =>
+      makeRequest.get("/relationships?userId=" + id).then((res) => {
+        return res.data
+      }),
+  })
+
+  const isCurrentUserProfile = currentUser.id === parseInt(id)
+  const isFollowed = !isLoadingFollowers && followers.includes(currentUser.id)
+
+  const queryClient = useQueryClient()
+  const mutation = useMutation(
+    (action) => {
+      return makeRequest.post(`/relationships/${action}?userId=` + id)
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(["relationship" + id])
+      },
+    }
+  )
+
+  const profileMutation = useMutation(
+    (updatedProfile) => {
+      return makeRequest.put(`/users/update?userId=` + id, updatedProfile)
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(["profile" + id])
+      },
+    }
+  )
+
+  const toggleFollow = () => {
+    const action = isFollowed ? "unfollow" : "follow"
+    mutation.mutate(action)
+  }
+
+  const handleCoverEditClick = () => {
+    coverUploadRef.current.click()
+  }
+
+  const handleProfileEditClick = () => {
+    profileUploadRef.current.click()
+  }
+
+  const upload = async (file) => {
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      const res = await makeRequest.post("/upload", formData)
+      return res.data
+    } catch (err) {
+      console.log(err)
+    }
+  }
+
+  const handleCoverEdit = async () => {
+    let imgUrl = ""
+    const file = coverUploadRef.current.files[0]
+    if (file) imgUrl = await upload(file)
+    profileMutation.mutate({ ...data, coverPicture: imgUrl })
+  }
+
+  const handleProfileEdit = async () => {
+    let imgUrl = ""
+    const file = profileUploadRef.current.files[0]
+    if (file) imgUrl = await upload(file)
+    profileMutation.mutate({ ...data, profilePicture: imgUrl })
+  }
+
+  if (isLoadingProfile) {
+    return "Loading profile"
+  }
+
   return (
     <div className="profile">
-      <img src={profile.coverPic} alt="" className="cover" />
+      <div className="cover-container">
+        <img
+          src={
+            "/upload/" + data.coverPicture ||
+            "https://timelinecovers.pro/facebook-cover/download/anonymous-unseen-facebook-cover.jpg"
+          }
+          alt=""
+          className="cover"
+        />
+        <input
+          type="file"
+          ref={coverUploadRef}
+          style={{ display: "none" }}
+          onChange={handleCoverEdit}
+        />
+        <EditIcon className="edit" onClick={handleCoverEditClick} />
+      </div>
+
       <div className="profileContainer">
         <div className="profileInfo">
-          <img src={profile.profilePic} alt="" className="profilePicture" />
+          <div className="profile-picture-container">
+            <img
+              src={
+                "/upload/" + data.profilePicture ||
+                "https://images.nightcafe.studio//assets/profile.png?tr=w-1600,c-at_max"
+              }
+              alt=""
+              className="profilePicture"
+            />
+            <input
+              type="file"
+              ref={profileUploadRef}
+              style={{ display: "none" }}
+              onChange={handleProfileEdit}
+            />
+            <EditIcon className="edit" onClick={handleProfileEditClick} />
+          </div>
           <div className="left">
             <a href="http://facebook.com">
               <FacebookTwoToneIcon fontSize="large" />
@@ -46,25 +171,30 @@ const Profile = () => {
             </a>
           </div>
           <div className="center">
-            <span className="name">{profile.name}</span>
+            <span className="name">{data.name}</span>
             <div className="info">
               <div className="item">
                 <PlaceIcon fontSize="small" />
-                <span>USA</span>
+                <span>{data.city}</span>
               </div>
               <div className="item">
                 <LanguageIcon fontSize="small" />
-                <span>lama.dev</span>
+                <span>{data.website}</span>
               </div>
             </div>
-            <button>Follow</button>
+            {isCurrentUserProfile ? null : (
+              <button onClick={toggleFollow}>
+                {isFollowed ? "Unfollow" : "Follow"}
+              </button>
+            )}
           </div>
           <div className="right">
             <EmailOutlinedIcon />
             <MoreVertIcon />
           </div>
         </div>
-        <Posts />
+        {isCurrentUserProfile ? <Share profileId={id} /> : null}
+        <Posts profileId={id} />
       </div>
     </div>
   )
