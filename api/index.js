@@ -48,6 +48,10 @@ app.use("/api/auth", authRouter)
 app.use("/api/stories", storiesRouter)
 app.use("/api/relationships", relationshipsRouter)
 
+app.get("/", (req, res) => {
+  res.send("Hey this is my API running 🥳")
+})
+
 app.listen("8800", () => {
   console.log("API working!")
 })
